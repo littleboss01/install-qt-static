@@ -37,7 +37,7 @@ jobs:
           git clone https://code.qt.io/qt/qt5.git qt -b '${{env.QT_VERSION}}'
           cd qt
           # 添加 qtwebengine 到模块子集
-          perl init-repository.pl -f --module-subset=qtbase,qtdeclarative,qtsvg,qtshadertools,qtmultimedia,qttools,qttranslations
+          perl init-repository.pl -f --module-subset=qtbase,qtdeclarative,qtsvg,qtshadertools,qtmultimedia,qttools,qttranslations,qtwebengine,qt5compat
 
       - name: Set up MSVC (32-bit)
         uses: ilammy/msvc-dev-cmd@v1
@@ -52,17 +52,8 @@ jobs:
         run: |
           mkdir qt_build
           cd qt_build
-          ..\qt\configure.bat -release -static -optimize-size -prefix "..\qt_static" -no-feature-accessibility  -platform win32-msvc
+          ..\qt\configure.bat -debug-and-release -optimize-size -prefix "..\qt_static" -no-feature-accessibility  -platform win32-msvc
           cmake --build . --parallel 4
-          cmake --install .
-
-      - name: Build Qt (macOS)
-        if: contains(matrix.os, 'macos')
-        run: |
-          mkdir qt_build
-          cd qt_build
-          ../qt/configure -static -release -optimize-size -prefix "../qt_static" -no-feature-accessibility -- -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
-          cmake --build . --parallel 3
           cmake --install .
 
       - name: Package binaries
