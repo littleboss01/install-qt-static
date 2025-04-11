@@ -1,0 +1,6 @@
+    - uses: AllanChain/install-qt-static@v6.7
+    - name: Build app
+      run: |
+        # Use qt-cmake to automatically use the toolchain
+        qt-cmake .
+        cmake --build .
