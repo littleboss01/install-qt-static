@@ -41,14 +41,13 @@ jobs:
         run: |
           git clone https://code.qt.io/qt/qt5.git qt -b '${{env.QT_VERSION}}'
           cd qt
-          # 添加 qtwebengine 到模块子集
           perl init-repository.pl -f --module-subset=qtbase,qtdeclarative,qtsvg,qtshadertools,qtmultimedia,qttools,qttranslations,qtwebengine
 
-      - name: Set up MSVC (32-bit)
+      - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
         if: contains(matrix.os, 'windows')
         with:
-          arch: x86 # 指定使用32位工具链
+          arch: x86
 
       - name: Build Qt (Windows)
         if: contains(matrix.os, 'windows')
@@ -57,7 +56,7 @@ jobs:
         run: |
           mkdir qt_build
           cd qt_build
-          ..\qt\configure.bat -debug-and-release  -static-runtime -optimize-size -prefix "..\qt_static" -no-feature-accessibility  -platform win32-msvc
+          ..\qt\configure.bat -release -static -optimize-size -prefix "..\qt_static" -no-feature-accessibility
           cmake --build . --parallel 4
           cmake --install .
 
@@ -114,4 +113,4 @@ jobs:
           git push -f origin v$QT_VERSION
           git tag -d v${QT_VERSION%.*} || true
           git tag v${QT_VERSION%.*} -m v${QT_VERSION%.*}
-          git push -f origin v${QT_VERSION%.*}    
+          git push -f origin v${QT_VERSION%.*}
