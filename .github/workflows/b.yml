@@ -1,0 +1,117 @@
+name: Build static Qt
+
+on:
+  push:
+    tags:
+      - '*-*' # Only tags with build number
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+        - os: windows-latest
+          os-caption: windows
+        - os: macos-latest
+          os-caption: macos
+
+    runs-on: ${{matrix.os}}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find Qt version
+        shell: python
+        run: |
+          import re
+          import os
+
+          with open("action.yml") as f:
+            action_content = f.read()
+          match = re.search(r"VERSION_TAG: v([\d.]+)", action_content)
+          print("Found Qt version:", match[1])
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+            f.write("QT_VERSION=" + match[1])
+
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: Clone Qt repo
+        run: |
+          git clone https://code.qt.io/qt/qt5.git qt -b '${{env.QT_VERSION}}'
+          cd qt
+          # 添加 qtwebengine 到模块子集
+          perl init-repository.pl -f --module-subset=qtbase,qtdeclarative,qtsvg,qtshadertools,qtmultimedia,qttools,qttranslations
+
+      - name: Set up MSVC (32-bit)
+        uses: ilammy/msvc-dev-cmd@v1
+        if: contains(matrix.os, 'windows')
+        with:
+          arch: x86 # 指定使用32位工具链
+
+      - name: Build Qt (Windows)
+        if: contains(matrix.os, 'windows')
+        env:
+          CL: /MP # Build with multiple processes
+        run: |
+          mkdir qt_build
+          cd qt_build
+          ..\qt\configure.bat -release -static -optimize-size -prefix "..\qt_static" -no-feature-accessibility  -platform win32-msvc
+          cmake --build . --parallel 4
+          cmake --install .
+
+      - name: Build Qt (macOS)
+        if: contains(matrix.os, 'macos')
+        run: |
+          mkdir qt_build
+          cd qt_build
+          ../qt/configure -static -release -optimize-size -prefix "../qt_static" -no-feature-accessibility -- -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          cmake --build . --parallel 3
+          cmake --install .
+
+      - name: Package binaries
+        run: |
+          7z a qt-${{env.QT_VERSION}}-static-${{matrix.os-caption}}.zip qt_static
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qt-static-${{matrix.os-caption}}
+          path: qt-*.zip
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+      - name: Find Qt version
+        shell: python
+        run: |
+          import re
+          import os
+
+          with open("action.yml") as f:
+            action_content = f.read()
+          match = re.search(r"VERSION_TAG: v([\d.]+)", action_content)
+          print("Found Qt version:", match[1])
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+            f.write("QT_VERSION=" + match[1])
+      - name: Shorthand tags
+        run: |
+          git config --global user.email "27856297+dependabot-preview[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git tag -d v$QT_VERSION || true
+          git tag v$QT_VERSION -m v$QT_VERSION
+          git push -f origin v$QT_VERSION
+          git tag -d v${QT_VERSION%.*} || true
+          git tag v${QT_VERSION%.*} -m v${QT_VERSION%.*}
+          git push -f origin v${QT_VERSION%.*}     这个工作流好像无法运行是缺少了什么?
